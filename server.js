@@ -4,8 +4,16 @@ const cors = require("cors");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// ── Middleware ──────────────────────────────────────────────
-app.use(cors({ origin: "*" }));
+// ── CORS — autoriser TOUTES les origines ───────────────────
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+
+// Répondre aux preflight OPTIONS immédiatement
+app.options("*", cors());
+
 app.use(express.json());
 
 // ── System prompt goOnline ─────────────────────────────────
@@ -26,25 +34,19 @@ David Laurens Kokoura alias DAVIESLAY 💥 — fondateur, entrepreneur digital v
 
 ## Fonctionnement technique
 - Frontend moderne : HTML5, CSS3, JavaScript
-- Design system : typographies Syne + DM Sans, palette ink/lime/electric
 - IA multi-moteurs : Gemini, OpenAI, Mistral selon configuration
 - Hébergement cloud scalable, sécurité HTTPS, conformité RGPD
 
 ## Vision
-Démocratiser le digital. Rendre le web professionnel accessible à tous, même sans compétences techniques. Accélérer la transformation numérique en Afrique et dans les marchés émergents.
+Démocratiser le digital. Rendre le web professionnel accessible à tous. Accélérer la transformation numérique en Afrique.
 
 ## Style de réponse
 - Toujours en français
 - Chaleureux, professionnel, enthousiaste
 - Valorise la vision de DAVIESLAY 💥
-- Emojis avec modération
-- Si hors sujet, recentre gentiment sur goOnline`;
+- Emojis avec modération`;
 
-// ══════════════════════════════════════════════════════════════
-//  MOTEURS IA — ajouter vos clés dans les variables Render
-// ══════════════════════════════════════════════════════════════
-
-// ── Gemini (Google) ────────────────────────────────────────
+// ── Gemini ─────────────────────────────────────────────────
 async function callGemini(messages) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY manquante");
@@ -79,7 +81,7 @@ async function callGemini(messages) {
   );
 }
 
-// ── OpenAI / ChatGPT ───────────────────────────────────────
+// ── OpenAI ─────────────────────────────────────────────────
 async function callOpenAI(messages) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error("OPENAI_API_KEY manquante");
@@ -92,28 +94,18 @@ async function callOpenAI(messages) {
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...messages,
-      ],
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
       max_tokens: 1024,
       temperature: 0.7,
     }),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenAI HTTP ${res.status}: ${err}`);
-  }
-
+  if (!res.ok) throw new Error(`OpenAI HTTP ${res.status}`);
   const data = await res.json();
-  return (
-    data?.choices?.[0]?.message?.content ||
-    "Désolé, je n'ai pas pu générer une réponse."
-  );
+  return data?.choices?.[0]?.message?.content || "Pas de réponse.";
 }
 
-// ── Mistral AI ─────────────────────────────────────────────
+// ── Mistral ────────────────────────────────────────────────
 async function callMistral(messages) {
   const key = process.env.MISTRAL_API_KEY;
   if (!key) throw new Error("MISTRAL_API_KEY manquante");
@@ -126,83 +118,57 @@ async function callMistral(messages) {
     },
     body: JSON.stringify({
       model: "mistral-small-latest",
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...messages,
-      ],
+      messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
       max_tokens: 1024,
       temperature: 0.7,
     }),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Mistral HTTP ${res.status}: ${err}`);
-  }
-
+  if (!res.ok) throw new Error(`Mistral HTTP ${res.status}`);
   const data = await res.json();
-  return (
-    data?.choices?.[0]?.message?.content ||
-    "Désolé, je n'ai pas pu générer une réponse."
-  );
+  return data?.choices?.[0]?.message?.content || "Pas de réponse.";
 }
 
-// ── Sélecteur de moteur avec fallback automatique ──────────
-async function callAI(messages, preferredEngine = "auto") {
-  // Ordre de priorité selon les clés disponibles
+// ── Routeur avec fallback ──────────────────────────────────
+async function callAI(messages, preferred = "auto") {
   const engines = [];
-
-  if (preferredEngine !== "auto") {
-    engines.push(preferredEngine);
-  }
-
-  // Fallback auto : on essaie dans l'ordre des clés disponibles
+  if (preferred !== "auto") engines.push(preferred);
   if (process.env.GEMINI_API_KEY)  engines.push("gemini");
   if (process.env.OPENAI_API_KEY)  engines.push("openai");
   if (process.env.MISTRAL_API_KEY) engines.push("mistral");
 
-  // Déduplication
   const ordered = [...new Set(engines)];
+  if (ordered.length === 0) throw new Error("Aucune clé API configurée.");
 
   let lastError;
   for (const engine of ordered) {
     try {
-      console.log(`🤖 Essai moteur : ${engine}`);
+      console.log(`🤖 Moteur : ${engine}`);
       if (engine === "gemini")  return { reply: await callGemini(messages),  engine };
       if (engine === "openai")  return { reply: await callOpenAI(messages),  engine };
       if (engine === "mistral") return { reply: await callMistral(messages), engine };
     } catch (err) {
-      console.warn(`⚠️  ${engine} a échoué : ${err.message}`);
+      console.warn(`⚠️ ${engine} échoué : ${err.message}`);
       lastError = err;
     }
   }
-
-  throw lastError || new Error("Aucun moteur IA disponible.");
+  throw lastError || new Error("Tous les moteurs ont échoué.");
 }
 
-// ══════════════════════════════════════════════════════════════
-//  ROUTES
-// ══════════════════════════════════════════════════════════════
-
-// ── Health check ───────────────────────────────────────────
+// ── Routes ─────────────────────────────────────────────────
 app.get("/", (req, res) => {
-  const engines = {
-    gemini:  !!process.env.GEMINI_API_KEY,
-    openai:  !!process.env.OPENAI_API_KEY,
-    mistral: !!process.env.MISTRAL_API_KEY,
-  };
-  const activeCount = Object.values(engines).filter(Boolean).length;
-
   res.json({
     status: "✅ goOnline Assistant API is running",
-    version: "2.0.0",
+    version: "2.1.0",
     creator: "DAVIESLAY 💥",
-    engines_configured: engines,
-    active_engines: activeCount,
+    engines: {
+      gemini:  !!process.env.GEMINI_API_KEY,
+      openai:  !!process.env.OPENAI_API_KEY,
+      mistral: !!process.env.MISTRAL_API_KEY,
+    },
   });
 });
 
-// ── Chat ───────────────────────────────────────────────────
 app.post("/chat", async (req, res) => {
   const { messages, engine = "auto" } = req.body;
 
@@ -215,17 +181,14 @@ app.post("/chat", async (req, res) => {
     res.json({ reply: result.reply, engine_used: result.engine });
   } catch (err) {
     console.error("❌ Erreur finale:", err.message);
-    res.status(502).json({
-      error: "Tous les moteurs IA ont échoué.",
-      detail: err.message,
-    });
+    res.status(502).json({ error: "Erreur IA.", detail: err.message });
   }
 });
 
 // ── Start ──────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`🚀 goOnline Assistant API v2 démarré sur le port ${PORT}`);
-  console.log(`🤖 Gemini  : ${process.env.GEMINI_API_KEY  ? "✅ configuré" : "❌ absent"}`);
-  console.log(`🤖 OpenAI  : ${process.env.OPENAI_API_KEY  ? "✅ configuré" : "❌ absent"}`);
-  console.log(`🤖 Mistral : ${process.env.MISTRAL_API_KEY ? "✅ configuré" : "❌ absent"}`);
+  console.log(`🚀 goOnline API v2.1 démarré — port ${PORT}`);
+  console.log(`🤖 Gemini  : ${process.env.GEMINI_API_KEY  ? "✅" : "❌"}`);
+  console.log(`🤖 OpenAI  : ${process.env.OPENAI_API_KEY  ? "✅" : "❌"}`);
+  console.log(`🤖 Mistral : ${process.env.MISTRAL_API_KEY ? "✅" : "❌"}`);
 });
