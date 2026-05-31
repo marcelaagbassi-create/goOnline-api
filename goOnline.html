@@ -13,7 +13,7 @@
 <meta property="og:url" content="https://marcelaagbassi-create.github.io/goOnline">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0a0a15">
-<link rel="manifest" href="manifest.json">
+<link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='30' fill='%230a0a15'/%3E%3Ctext x='20' y='140' font-family='Arial' font-weight='900' font-size='110' fill='%23a3e635'%3Ego%3C/text%3E%3C/svg%3E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1186,7 +1186,7 @@ let deferredPrompt = null;
 // Enregistrer le Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
+    navigator.serviceWorker.register('./sw.js', {scope: './'})
       .then(reg => console.log('SW enregistre:', reg.scope))
       .catch(err => console.warn('SW erreur:', err));
   });
