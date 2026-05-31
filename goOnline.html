@@ -13,7 +13,46 @@
 <meta property="og:url" content="https://marcelaagbassi-create.github.io/goOnline">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0a0a15">
-<link rel="manifest" href="./manifest.json">
+<link rel="manifest" id="manifestLink">
+<script>
+// Manifest inline — fonctionne même sans fichier séparé
+(function(){
+  const manifest = {
+    "name": "goOnline — Le digital, simplement.",
+    "short_name": "goOnline",
+    "description": "Agence digitale nouvelle génération. Sites web, branding, marketing, IA. By DAVIESLAY",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "background_color": "#0a0a15",
+    "theme_color": "#4f46e5",
+    "orientation": "portrait-primary",
+    "lang": "fr",
+    "icons": [
+      {
+        "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='30' fill='%230a0a15'/%3E%3Crect width='192' height='192' rx='30' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ctext x='10' y='145' font-family='Arial' font-weight='900' font-size='120' fill='%23a3e635'%3Ego%3C/text%3E%3C/svg%3E",
+        "sizes": "192x192",
+        "type": "image/svg+xml",
+        "purpose": "any"
+      },
+      {
+        "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='80' fill='%230a0a15'/%3E%3Crect width='512' height='512' rx='80' fill='url(%23g)'/%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%234f46e5'/%3E%3Cstop offset='1' stop-color='%237c3aed'/%3E%3C/linearGradient%3E%3C/defs%3E%3Ctext x='20' y='380' font-family='Arial' font-weight='900' font-size='300' fill='%23a3e635'%3Ego%3C/text%3E%3C/svg%3E",
+        "sizes": "512x512",
+        "type": "image/svg+xml",
+        "purpose": "any maskable"
+      }
+    ],
+    "shortcuts": [
+      {"name": "Demander un devis", "short_name": "Devis", "url": "./#contact"},
+      {"name": "Assistant IA", "short_name": "IA", "url": "./"}
+    ],
+    "prefer_related_applications": false
+  };
+  const blob = new Blob([JSON.stringify(manifest)], {type: 'application/manifest+json'});
+  const url = URL.createObjectURL(blob);
+  document.getElementById('manifestLink').href = url;
+})();
+</script>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='30' fill='%230a0a15'/%3E%3Ctext x='20' y='140' font-family='Arial' font-weight='900' font-size='110' fill='%23a3e635'%3Ego%3C/text%3E%3C/svg%3E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1186,9 +1225,61 @@ let deferredPrompt = null;
 // Enregistrer le Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js', {scope: './'})
-      .then(reg => console.log('SW enregistre:', reg.scope))
-      .catch(err => console.warn('SW erreur:', err));
+    // SW inline via blob pour eviter les problemes de chemin GitHub Pages
+    const swCode = `
+const CACHE='goonline-v2';
+self.addEventListener('install',e=>{
+  e.waitUntil(self.skipWaiting());
+});
+self.addEventListener('activate',e=>{
+  e.waitUntil(
+    caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+    .then(()=>self.clients.claim())
+  );
+});
+self.addEventListener('fetch',e=>{
+  const u=new URL(e.request.url);
+  if(e.request.method!=='GET')return;
+  if(u.hostname.includes('onrender.com'))return;
+  if(u.hostname.includes('googleapis'))return;
+  if(u.hostname.includes('mistral'))return;
+  if(u.protocol==='chrome-extension:')return;
+  e.respondWith(
+    fetch(e.request).then(r=>{
+      if(r&&r.status===200){
+        const c=r.clone();
+        caches.open(CACHE).then(cache=>{try{cache.put(e.request,c);}catch(err){}});
+      }
+      return r;
+    }).catch(()=>caches.match(e.request).then(cached=>{
+      if(cached)return cached;
+      if(e.request.headers.get('accept')&&e.request.headers.get('accept').includes('text/html')){
+        return caches.match('./').catch(()=>new Response(
+          '<html><body style="background:#0a0a15;color:#f1f5f9;font-family:sans-serif;text-align:center;padding:3rem"><h1 style="color:#a3e635">goOnline</h1><p>Hors ligne</p><button onclick="location.reload()">Reessayer</button></body></html>',
+          {headers:{'Content-Type':'text/html'}}
+        ));
+      }
+    }))
+  );
+});`;
+    try {
+      const blob = new Blob([swCode], {type: 'application/javascript'});
+      const swUrl = URL.createObjectURL(blob);
+      navigator.serviceWorker.register(swUrl, {scope: './'})
+        .then(reg => {
+          console.log('SW goOnline enregistre:', reg.scope);
+          // Aussi essayer le fichier sw.js externe
+          navigator.serviceWorker.register('./sw.js', {scope: './'}).catch(()=>{});
+        })
+        .catch(err => {
+          // Fallback: essayer le fichier sw.js externe directement
+          navigator.serviceWorker.register('./sw.js', {scope: './'})
+            .then(r => console.log('SW externe OK:', r.scope))
+            .catch(e2 => console.warn('SW non disponible:', e2.message));
+        });
+    } catch(e) {
+      navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    }
   });
 }
 
